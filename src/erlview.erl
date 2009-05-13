@@ -473,6 +473,7 @@ find_all_fields( Doc, {Keys, Out_fields} ) ->
     #doc{id=Id,deleted=_Del,body=Body,revs=Revs,meta=_Meta} = Doc ,
 ?LOG( [{Body, {Keys, Out_fields}}] ) ,
 
+    {RevStart, RevNos} = Revs,
     Eb = element(1, Body) ,
     Vk = hd(Keys) ,
     Fields = lists:map( 
@@ -496,7 +497,7 @@ find_all_fields( Doc, {Keys, Out_fields} ) ->
      Out = case is_true(Truth_list) and (lists:flatlength(Fields) > 0)
 	       of true ->
 		   [{ Vk, {[{<<"_id">>,Id}] 
-			   ++ [{<<"_rev">>,hd(Revs)}] 
+			   ++ [{<<"_rev">>, ?l2b([integer_to_list(RevStart),"-",hd(RevNos)])}] 
 			   ++ Fields } }] ;
 	       _       -> []
 	   end , 
