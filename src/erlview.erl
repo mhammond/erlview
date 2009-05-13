@@ -214,7 +214,7 @@
 %% map fun helper funs
 -export([find_all_content/2]).
 -export([find_all_fields/2, entire_doc/2, entire_doc/3]).
--export([helper/2]). % will replace all helpers
+-export([helper/3]). % will replace all helpers
 -export([version/0]).
 
 %% gen_server callbacks
@@ -230,7 +230,8 @@
 %% API
 %%====================================================================
 
-version() -> io:fwrite("~p~n", [?VERSION]).
+%% Where is ?VERSION supposed to come from?  Hack it into a string...
+version() -> io:fwrite("~p~n", ["?VERSION"]).
 
 %%--------------------------------------------------------------------
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
@@ -408,6 +409,7 @@ find_all_content( Doc, {Key_pairs, Out_fields} ) ->  % all must match
     #doc{id=Id,deleted=_Del,body=Body,revs=Revs,meta=_Meta} = Doc ,
 ?LOG( [{Body, {Key_pairs, Out_fields}}] ) ,
 
+    {RevStart, RevNos} = Revs,
     Eb = element(1, Body) ,
 
     Truth_list = lists:map(fun(K) ->              % search doc content
@@ -432,7 +434,7 @@ find_all_content( Doc, {Key_pairs, Out_fields} ) ->  % all must match
 			     Out_fields ) ,
 
                        [{ Vk, {[{<<"_id">>,Id}] 
-			       ++ [{<<"_rev">>,hd(Revs)}] 
+			       ++ [{<<"_rev">>, ?l2b([integer_to_list(RevStart),"-",hd(RevNos)])}] 
 			       ++ Out_Fields } }] ;
 				 
  	     false  -> []
@@ -710,18 +712,22 @@ handle_call( {prompt, [<<"add_fun">> , BinFunc]}, _From, _State ) ->
 	  "", 
 	  BinFunctions ) ,
 
-    {reply, Reply, #state{fun_was="add_fun"}}
+    {reply, {ok, Reply}, #state{fun_was="add_fun"}}
 
 %handle_call/3  add_fun
 ;
 handle_call({prompt, [<<"map_doc">> , Doc]} , _From , _State) ->
     Fun_list = ets:tab2list(?FUNTABLE) ,
     L = lists:map( fun(Fa) -> G = binary_to_term( element(2, Fa)) , 
-			      try  (catch G(Doc))
-			      of {'EXIT', _}  -> exit(runtime_error_map_fun) ;
-			      Gx              -> Gx
-			      catch _:_       -> exit(runtime_error_map_fun) 
-			      end
+%% Catching exceptions and raising a simple 'runtime_error_map_fun'
+%% doesn't seem to offer much - the world still stops but the original
+%% exception has been lost, leaving us scratching our heads....
+			      G(Doc)
+%			      try  (catch G(Doc))
+%			      of {'EXIT', _}  -> exit(runtime_error_map_fun) ;
+%			      Gx              -> Gx
+%			      catch _:_       -> exit(runtime_error_map_fun) 
+%			      end
 		   end ,
  		   Fun_list ) ,
 
@@ -733,7 +739,8 @@ handle_call({prompt, [<<"map_doc">> , Doc]} , _From , _State) ->
 %% should try that again except I don't think can depend on all funs
 %% getting passed at once to add_fun
 
-    {reply, L, #state{fun_was="map_doc"}}
+    {reply, {ok, L}, #state{fun_was="map_doc"}}
+
 .%handle_call map_doc
 
 
